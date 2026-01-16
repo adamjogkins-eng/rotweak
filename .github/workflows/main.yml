@@ -8,24 +8,31 @@ jobs:
   iphone_build:
     runs-on: macos-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Compile for iPhone
+      - name: Verify File Exists
+        run: ls -R
+
+      - name: Compile for iPhone (Verbose)
         run: |
-          # Use xcrun to target the physical iPhone SDK
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          clang -dynamiclib -arch arm64 \
+          # We use -v to see the full error log if it fails
+          clang -v -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
-            -framework UIKit -framework Foundation -framework CoreGraphics \
+            -framework UIKit \
+            -framework Foundation \
+            -framework CoreGraphics \
+            -framework QuartzCore \
             -miphoneos-version-min=14.0 \
             -install_name @executable_path/iOSStrap.dylib \
             -fobjc-arc \
             iOSStrap.mm -o iOSStrap.dylib
+        continue-on-error: false
 
       - name: Ad-hoc Sign
-        run: codesign -s - iOSStrap.dylib
+        run: codesign -f -s - iOSStrap.dylib
 
       - name: Upload
         uses: actions/upload-artifact@v4
