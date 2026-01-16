@@ -1,21 +1,23 @@
-name: Build Roblox Optimizer
+name: Build Roblox UI Tweak
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Compile Dylib
         run: |
           xcrun -sdk iphoneos clang++ -dynamiclib -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          -framework UIKit -framework Foundation \
+          -framework UIKit \
+          -framework Foundation \
+          -framework QuartzCore \
           Tweak.mm -o Tweak.dylib
 
-      - name: Upload to iPhone
+      - name: Upload Tweak
         uses: actions/upload-artifact@v4
         with:
           name: RobloxOptimizer
