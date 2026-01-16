@@ -2,86 +2,88 @@
 #import <QuartzCore/QuartzCore.h>
 #include <fstream>
 
-// --- UI TOGGLE STATES ---
+// --- PREFERENCES STORAGE ---
 static BOOL fpsEnabled = YES;
-static BOOL lowLagEnabled = YES;
+static BOOL shadowsEnabled = NO;
+static BOOL lowResEnabled = YES;
 
-// --- CONFIG WRITER ---
-void updateRobloxConfig() {
+// --- ENGINE LOGIC: UPDATES THE JSON ---
+void syncBlockssSettings() {
     NSString *libPath = [NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES) firstObject];
-    NSString *settingsDir = [libPath stringByAppendingPathComponent:@"Application Support/ClientSettings"];
-    NSString *filePath = [settingsDir stringByAppendingPathComponent:@"ClientAppSettings.json"];
-    [[NSFileManager defaultManager] createDirectoryAtPath:settingsDir withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *folder = [libPath stringByAppendingPathComponent:@"Application Support/ClientSettings"];
+    NSString *file = [folder stringByAppendingPathComponent:@"ClientAppSettings.json"];
+    
+    [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
 
-    NSString *fps = fpsEnabled ? @"120" : @"60";
-    NSString *shdw = lowLagEnabled ? @"0" : @"1";
-    NSString *pbr = lowLagEnabled ? @"1" : @"0";
+    // Map switches to Roblox Fast Flags
+    NSString *fpsVal = fpsEnabled ? @"120" : @"60";
+    NSString *shadVal = shadowsEnabled ? @"1" : @"0";
+    NSString *texVal = lowResEnabled ? @"1" : @"0";
 
-    NSString *json = [NSString stringWithFormat:@"{\"DFIntTaskSchedulerTargetFps\":%@,\"FIntRenderShadowIntensity\":%@,\"FIntDebugTextureManagerSkipPBR\":%@}", fps, shdw, pbr];
-    [json writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    NSString *json = [NSString stringWithFormat:
+        @"{\"DFIntTaskSchedulerTargetFps\":%@,\"FIntRenderShadowIntensity\":%@,\"FIntDebugTextureManagerSkipPBR\":%@}", 
+        fpsVal, shadVal, texVal];
+
+    [json writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
-// --- THE MENU UI ---
-@interface ModMenu : UIView
+// --- THE UI INTERFACE ---
+@interface BlockssMenu : UIView
 @end
 
-@implementation ModMenu
+@implementation BlockssMenu
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.layer.cornerRadius = 20;
+        self.layer.cornerRadius = 22;
         self.clipsToBounds = YES;
-        self.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.8]; // Dark rounded box
+        self.backgroundColor = [UIColor colorWithWhite:0.05 alpha:0.85]; // Sleek dark glass
 
-        UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 10, 250, 30)];
-        title.text = @"GEMINI OPTIMIZER";
+        // Header Title
+        UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 15, frame.size.width, 30)];
+        title.text = @"BLOCKSS OPTIMIZER";
         title.textColor = [UIColor cyanColor];
         title.textAlignment = NSTextAlignmentCenter;
-        title.font = [UIFont boldSystemFontOfSize:18];
+        title.font = [UIFont boldSystemFontOfSize:20];
         [self addSubview:title];
 
-        // Toggle Buttons
-        UIButton *hideBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-        hideBtn.frame = CGRectMake(25, 150, 200, 40);
-        [hideBtn setTitle:@"CLOSE MENU" forState:UIControlStateNormal];
-        hideBtn.backgroundColor = [UIColor grayColor];
-        hideBtn.layer.cornerRadius = 10;
-        [hideBtn addTarget:self action:@selector(hideMenu) forControlEvents:UIControlEventTouchUpInside];
-        [self addSubview:hideBtn];
+        // ACTUAL SETTINGS ROWS
+        [self addSettingRow:@"Unlock 120 FPS" y:60 action:@selector(toggleFPS:) isOn:fpsEnabled];
+        [self addSettingRow:@"Enable Shadows" y:110 action:@selector(toggleShadows:) isOn:shadowsEnabled];
+        [self addSettingRow:@"Texture Optimizer" y:160 action:@selector(toggleTextures:) isOn:lowResEnabled];
     }
     return self;
 }
-- (void)hideMenu { self.hidden = YES; }
-@end
 
-// --- FLOATING BUTTON ---
-@interface FloatingBtn : UIButton
-@end
-@implementation FloatingBtn
-- (void)touchesMoved:(NSSet*)t withEvent:(UIEvent*)e {
-    self.center = [[t anyObject] locationInView:self.superview];
+- (void)addSettingRow:(NSString *)title y:(CGFloat)y action:(SEL)selector isOn:(BOOL)on {
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, y, 160, 31)];
+    label.text = title;
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
+    [self addSubview:label];
+
+    UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectMake(self.frame.size.width - 70, y, 50, 31)];
+    sw.on = on;
+    sw.onTintColor = [UIColor cyanColor];
+    [sw addTarget:self action:selector forControlEvents:UIControlEventValueChanged];
+    [self addSubview:sw];
 }
+
+// TOGGLE CALLBACKS
+- (void)toggleFPS:(UISwitch *)s { fpsEnabled = s.on; syncBlockssSettings(); }
+- (void)toggleShadows:(UISwitch *)s { shadowsEnabled = s.on; syncBlockssSettings(); }
+- (void)toggleTextures:(UISwitch *)s { lowResEnabled = s.on; syncBlockssSettings(); }
+
 @end
 
-// --- APP START ---
-static ModMenu *myMenu;
+// --- INJECTION ENGINE ---
+static BlockssMenu *mainMenu;
 __attribute__((constructor))
-static void initialize() {
+static void startBlockss() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        UIWindow *win = [UIApplication sharedApplication].keyWindow;
-        
-        myMenu = [[ModMenu alloc] initWithFrame:CGRectMake(50, 100, 250, 210)];
-        myMenu.hidden = YES;
-        [win addSubview:myMenu];
-
-        FloatingBtn *fb = [FloatingBtn buttonWithType:UIButtonTypeCustom];
-        fb.frame = CGRectMake(10, 200, 50, 50);
-        fb.backgroundColor = [UIColor cyanColor];
-        fb.layer.cornerRadius = 25;
-        [fb setTitle:@"G" forState:UIControlStateNormal];
-        [fb addTarget:myMenu action:@selector(setHidden:) forControlEvents:UIControlEventTouchUpInside];
-        [win addSubview:fb];
-        
-        updateRobloxConfig();
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        mainMenu = [[BlockssMenu alloc] initWithFrame:CGRectMake(window.center.x - 135, 120, 270, 220)];
+        [window addSubview:mainMenu];
+        syncBlockssSettings(); // Apply defaults on boot
     });
 }
