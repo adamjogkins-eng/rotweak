@@ -1,25 +1,22 @@
 name: Build iPhone Dylib
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
-  iphone_build:
+  build:
     runs-on: macos-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify File Exists
-        run: ls -R
-
-      - name: Compile for iPhone (Verbose)
+      - name: Compile
         run: |
+          # Automatically find your .mm file even if named differently
+          SOURCE_FILE=$(ls *.mm | head -n 1)
+          echo "Compiling: $SOURCE_FILE"
+          
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          # We use -v to see the full error log if it fails
-          clang -v -dynamiclib -arch arm64 \
+          clang -dynamiclib -arch arm64 \
             -isysroot "$SDK_PATH" \
             -framework UIKit \
             -framework Foundation \
@@ -28,14 +25,14 @@ jobs:
             -miphoneos-version-min=14.0 \
             -install_name @executable_path/iOSStrap.dylib \
             -fobjc-arc \
-            iOSStrap.mm -o iOSStrap.dylib
-        continue-on-error: false
-
-      - name: Ad-hoc Sign
-        run: codesign -f -s - iOSStrap.dylib
-
-      - name: Upload
+            "$SOURCE_FILE" -o iOSStrap.dylib
+            
+      - name: Sign and Upload
+        run: |
+          codesign -f -s - iOSStrap.dylib
+          
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iPhone-Dylib
+          name: iOSStrap-Dylib
           path: iOSStrap.dylib
